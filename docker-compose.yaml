@@ -1,0 +1,152 @@
+version: '3'
+services:
+  mongo:
+    container_name: 'mongodb'
+    image: mongo
+    restart: always
+    volumes:
+      - mongo:/data/db
+    expose:
+      - 27017
+    ports:
+      - 27018:27017
+  nats-server:
+    image: nats
+    expose:
+      - 4222
+    ports:
+      - '8222:8222'
+    volumes:
+      - ./nats/:/etc/nats
+    command: '-c /etc/nats/nats.conf --http_port 8222'
+    restart: always
+
+  guardian-vault:
+    container_name: guardian-vault
+    image: vault
+    restart: always
+    cap_add:
+      - IPC_LOCK
+    ports:
+      - 8200:8200
+    volumes:
+      - vault_data:/vault/file
+      - ./vault/config.hcl:/vault/config/vault-server-config.hcl
+    command: 'server'
+    healthcheck:
+      test: sh -c "vault status --address=http://localhost:8200 | grep -c true"
+      interval: 2s
+      timeout: 3s
+      retries: 5
+
+  guardian-logger-service:
+    container_name: guardian-logger-service
+    image: gcr.io/hedera-registry/logger-service:${GUARDIAN_VERSION:-latest}
+    depends_on:
+      - nats-server
+    restart: always
+    environment:
+      - MQ_ADDRESS=nats-server
+      - DB_HOST=mongo
+  guardian-auth-service:
+    image: gcr.io/hedera-registry/auth-service:${GUARDIAN_VERSION:-latest}
+    restart: always
+    container_name: guardian-auth-service
+    depends_on:
+      - mongo
+      - nats-server
+      - guardian-logger-service
+      - guardian-vault
+    environment:
+      - MQ_ADDRESS=nats-server
+      - DB_HOST=mongo
+      - VAULT_PROVIDER=database
+      - IMPORT_KEYS_FROM_DB=1
+      - HASHICORP_ADDRESS=http://guardian-vault:8200
+      - HASHICORP_TOKEN=${VAULT_ROOT_TOKEN:-na}
+  guardian-guardian-service:
+    container_name: guardian-guardian-service
+    image: gcr.io/hedera-registry/guardian-service:${GUARDIAN_VERSION:-latest}
+    restart: always
+    volumes:
+      - ./.env:/usr/guardian-service/.env
+    depends_on:
+      - mongo
+      - nats-server
+      - guardian-auth-service
+      - guardian-logger-service
+    environment:
+      - MQ_ADDRESS=nats-server
+      - DB_HOST=mongo
+      - DB_DATABASE=guardian_db
+      - SERVICE_CHANNEL=guardian
+      - LOG_LEVEL="2"
+  guardian-api-gateway:
+    container_name: guardian-api-gateway
+    image: gcr.io/hedera-registry/api-gateway:${GUARDIAN_VERSION:-latest}
+    restart: always
+    expose:
+      - 3002
+    depends_on:
+      - nats-server
+      - guardian-guardian-service
+      - guardian-auth-service
+      - guardian-logger-service
+    environment:
+      - MQ_ADDRESS=nats-server
+      - DB_HOST=mongo
+    # healthcheck:
+    #   test: curl --fail http://localhost:3002/demo/registeredUsers || exit 1
+    #   interval: 15s
+    #   retries: 3
+    #   start_period: 5s
+    #   timeout: 10s
+  guardian-worker-service:
+    container_name: guardian-worker-service
+    image: gcr.io/hedera-registry/worker-service:${GUARDIAN_VERSION:-latest}
+    restart: always
+    depends_on:
+      - mongo
+      - nats-server
+      - guardian-logger-service
+    environment:
+      - SERVICE_CHANNEL=worker
+      - MQ_ADDRESS=nats-server
+      - MQ_TIMEOUT=30000
+
+  guardian-ipfs-client:
+    container_name: guardian-ipfs-client
+    image: gcr.io/hedera-registry/ipfs-client:${GUARDIAN_VERSION:-latest}
+    restart: always
+    ports:
+      - '5001:5001'
+      - '5002:5002'
+      - '4001:4001'
+      - '4002:4002'
+    depends_on:
+      - mongo
+      - nats-server
+      - guardian-logger-service
+    environment:
+      - MQ_ADDRESS=nats-server
+      - DB_HOST=mongo
+      - MQ_TIMEOUT=30000
+      - IPFS_STORAGE_API_KEY=${IPFS_STORAGE_API_KEY}
+  guardian-frontend:
+    container_name: guardian-frontend
+    image: gcr.io/hedera-registry/frontend:${GUARDIAN_VERSION:-latest}
+    ports:
+      - '3000:80'
+    volumes:
+      - ./nginx/guardian.conf:/etc/nginx/nginx.conf
+    depends_on:
+      guardian-api-gateway:
+        condition: service_started
+    restart: always
+    environment:
+      - GATEWAY_HOST=guardian-api-gateway
+      - GATEWAY_PORT=3002
+
+volumes:
+  mongo:
+  vault_data:
