@@ -102,7 +102,7 @@ services:
     #   start_period: 5s
     #   timeout: 10s
   guardian-worker-service:
-    container_name: guardian-worker-service
+    # container_name: guardian-worker-service
     image: gcr.io/hedera-registry/worker-service:${GUARDIAN_VERSION:-latest}
     restart: always
     depends_on:
@@ -115,7 +115,7 @@ services:
       - MQ_TIMEOUT=30000
 
   guardian-ipfs-client:
-    container_name: guardian-ipfs-client
+    # container_name: guardian-ipfs-client
     image: gcr.io/hedera-registry/ipfs-client:${GUARDIAN_VERSION:-latest}
     restart: always
     ports:
