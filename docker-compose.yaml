@@ -65,7 +65,7 @@ services:
       - HASHICORP_ADDRESS=http://guardian-vault:8200
       - HASHICORP_TOKEN=${VAULT_ROOT_TOKEN:-na}
   guardian-guardian-service:
-    container_name: guardian-guardian-service
+    # container_name: guardian-guardian-service
     image: gcr.io/hedera-registry/guardian-service:${GUARDIAN_VERSION:-latest}
     restart: always
     volumes:
