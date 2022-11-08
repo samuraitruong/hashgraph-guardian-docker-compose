@@ -90,8 +90,6 @@ services:
     depends_on:
       - nats-server
       - guardian-guardian-service
-      - guardian-auth-service
-      - guardian-logger-service
     environment:
       - MQ_ADDRESS=nats-server
       - DB_HOST=mongo
@@ -110,19 +108,14 @@ services:
       - nats-server
       - guardian-logger-service
     environment:
-      - SERVICE_CHANNEL=worker
       - MQ_ADDRESS=nats-server
       - MQ_TIMEOUT=30000
+    command: sh -c "SERVICE_CHANNEL=${HOSTNAME} && npm start"
 
   guardian-ipfs-client:
     # container_name: guardian-ipfs-client
     image: gcr.io/hedera-registry/ipfs-client:${GUARDIAN_VERSION:-latest}
     restart: always
-    ports:
-      - '5001:5001'
-      - '5002:5002'
-      - '4001:4001'
-      - '4002:4002'
     depends_on:
       - mongo
       - nats-server
@@ -132,6 +125,7 @@ services:
       - DB_HOST=mongo
       - MQ_TIMEOUT=30000
       - IPFS_STORAGE_API_KEY=${IPFS_STORAGE_API_KEY}
+    command: sh -c "SERVICE_CHANNEL=${HOSTNAME} && npm start"
   guardian-frontend:
     container_name: guardian-frontend
     image: gcr.io/hedera-registry/frontend:${GUARDIAN_VERSION:-latest}
