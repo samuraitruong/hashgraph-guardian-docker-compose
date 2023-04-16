@@ -71,6 +71,7 @@ services:
     restart: always
     volumes:
       - ./.env:/usr/guardian-service/.env
+      # - ./tmp/guardian-service:/usr/guardian-service/dist
     depends_on:
       - mongo
       - nats-server
@@ -111,11 +112,14 @@ services:
     environment:
       - MQ_ADDRESS=nats-server
       - MQ_TIMEOUT=30000
+      - IPFS_STORAGE_API_KEY=${IPFS_STORAGE_API_KEY}
     command: sh -c "SERVICE_CHANNEL=${HOSTNAME} && npm start"
+    # volumes:
+    #   - ./tmp/worker-service:/usr/worker-service/dist
 
-  guardian-ipfs-client:
+  guardian-policy-service:
     # container_name: guardian-ipfs-client
-    image: gcr.io/hedera-registry/ipfs-client:${GUARDIAN_VERSION:-latest}
+    image: gcr.io/hedera-registry/policy-service:${GUARDIAN_VERSION:-latest}
     restart: always
     depends_on:
       - mongo
@@ -125,8 +129,7 @@ services:
       - MQ_ADDRESS=nats-server
       - DB_HOST=mongo
       - MQ_TIMEOUT=30000
-      - IPFS_STORAGE_API_KEY=${IPFS_STORAGE_API_KEY}
-    command: sh -c "SERVICE_CHANNEL=${HOSTNAME} && npm start"
+    # command: sh -c "SERVICE_CHANNEL=${HOSTNAME} && npm start"
   guardian-frontend:
     container_name: guardian-frontend
     image: gcr.io/hedera-registry/frontend:${GUARDIAN_VERSION:-latest}
